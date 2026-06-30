@@ -1,0 +1,1635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0D0D0F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ForgeFit">
+<title>ForgeFit — Hybrid Training Log</title>
+<style>
+  * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+  html, body { margin:0; padding:0; background:#0D0D0F; overscroll-behavior-y: none; }
+  body { font-family: system-ui, -apple-system, sans-serif; }
+  #root { min-height: 100vh; }
+  input, button { font-family: inherit; }
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div style="min-height:100vh;background:#0D0D0F;display:flex;align-items:center;justify-content:center;color:#52525E;font-family:monospace;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;">
+    Loading ForgeFit…
+  </div>
+</div>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ─────────────────────────────────────────────
+// PROGRAM DATA
+// ─────────────────────────────────────────────
+const PHASES = [
+  {
+    id:1, label:"Phase 1", weeks:[1,2,3,4], rides:2, ridedays:[3,6],
+    desc:"Strength foundation. Easy rides Wed + Sat only.",
+    weekFocus:[
+      "Learn the movements. Form over load on every exercise. Log everything — this is your baseline.",
+      "Starting to feel the pattern. Add 1 rep where you can. Keep rides conversational.",
+      "Strength habits forming. Push the rep ceiling — if you hit 12 reps, go heavier next week.",
+      "Final foundation week. Deload Friday if fatigued. Saturday ride is your longest yet.",
+    ],
+    rideGuidance:"Wed: Easy Spin 20–30 min after lifting. Sat: Long Endurance 45–60 min. Both conversational — no hard efforts yet.",
+  },
+  {
+    id:2, label:"Phase 2", weeks:[5,6,7,8], rides:4, ridedays:[1,3,4,6],
+    desc:"Add HIIT Mon + Thu morning. 4 rides/week.",
+    weekFocus:[
+      "First week with Mon morning HIIT. Keep it 20 min. Your body is adapting to two-a-days.",
+      "Two-a-days becoming routine. Thu morning ride added. Monitor recovery closely.",
+      "Volume peak for Phase 2. If lifts stall, cut a ride — never the strength session.",
+      "Consolidation week. You're at 4 rides. Phase 3 adds 2 more — make sure you're recovering well.",
+    ],
+    rideGuidance:"Mon + Thu: HIIT or Power Zone 20–30 min. Wed: Easy Spin after lifting. Sat: Long Endurance 45–60 min.",
+  },
+  {
+    id:3, label:"Phase 3", weeks:[9,10,11,12], rides:6, ridedays:[1,2,3,4,5,6],
+    desc:"Full program. Daily morning rides.",
+    weekFocus:[
+      "First week of full daily riding. Tue + Fri endurance rides are new — keep them genuinely easy.",
+      "All systems running. Track recovery: sleep quality, resting HR, appetite.",
+      "Peak program week. PRs should appear regularly. Trust the progressive overload.",
+      "Final week. Finish strong — document your top sets. Your Week 1 baseline is now obsolete.",
+    ],
+    rideGuidance:"Mon + Thu: HIIT or Power Zone. Tue + Fri: Endurance 20–30 min. Wed: Power Zone Endurance after lifting. Sat: Long Endurance 45–60 min.",
+  },
+];
+
+const RIDE_TYPES = ["Easy Spin","Long Endurance","Power Zone","Power Zone Endurance","HIIT","Tabata","Recovery","Climb"];
+
+const DAYS = [
+  { id:"push_a", label:"Push A", type:"push", dayOfWeek:1,
+    peloton:{ ph1:null, ph2:"HIIT or Power Zone (20–30 min)", ph3:"HIIT or Power Zone (20–30 min)" },
+    exercises:[
+      { id:"flat_bench",   name:"Flat Lever Bench Press",        equip:"Levergym",   sets:4, reps:"6–10",      note:"Primary compound — heaviest push movement" },
+      { id:"inc_bench",    name:"Incline Lever Bench Press",     equip:"Levergym",   sets:3, reps:"8–12",      note:"Upper chest emphasis" },
+      { id:"iso_shoulder", name:"Isolateral Shoulder Press",     equip:"Levergym",   sets:3, reps:"8–12",      note:"Each arm independently for balance" },
+      { id:"lat_raise",    name:"DB Lateral Raise",              equip:"Dumbbells",  sets:3, reps:"12–15",     note:"Control the eccentric — 3 sec down" },
+      { id:"tri_pushdown", name:"Overhead Triceps Pushdown",     equip:"Levergym",   sets:3, reps:"10–12",     note:"Use short triceps bar attachment" },
+      { id:"tri_ext",      name:"DB Overhead Triceps Extension", equip:"Dumbbells",  sets:3, reps:"10–12",     note:"Keep elbows tight — don't flare" },
+    ]},
+  { id:"pull_a", label:"Pull A", type:"pull", dayOfWeek:2,
+    peloton:{ ph1:null, ph2:null, ph3:"Endurance (20–30 min)" },
+    exercises:[
+      { id:"wide_pulldown", name:"Wide Grip Pulldown",           equip:"Levergym",   sets:4, reps:"8–12",      note:"Full stretch at top, squeeze at bottom" },
+      { id:"iso_row",       name:"Isolateral Bent Over Row",     equip:"Levergym",   sets:4, reps:"8–10",      note:"Heaviest row — drive elbows back" },
+      { id:"low_row",       name:"Low Cable Row",                equip:"Levergym",   sets:3, reps:"10–12",     note:"Chest tall, no rounding" },
+      { id:"hi_curl",       name:"High Cable Bicep Curl",        equip:"Levergym",   sets:3, reps:"10–12",     note:"Arms fixed — isolate the bicep" },
+      { id:"hammer_curl",   name:"DB Hammer Curl",               equip:"Dumbbells",  sets:3, reps:"10–12",     note:"Neutral grip — targets brachialis too" },
+      { id:"rear_fly",      name:"DB Rear Delt Fly",             equip:"Dumbbells",  sets:3, reps:"12–15",     note:"Slight bend in elbow, lead with elbows" },
+    ]},
+  { id:"legs_a", label:"Legs A", type:"legs", dayOfWeek:3,
+    peloton:{ ph1:"Easy Spin after lifting (20–30 min)", ph2:"Easy Spin after lifting (20–30 min)", ph3:"Power Zone Endurance after lifting (30–45 min)" },
+    exercises:[
+      { id:"lever_squat",   name:"Lever Squat",                  equip:"Levergym",   sets:4, reps:"8–10",      note:"Bench detached — feet shoulder-width" },
+      { id:"rdl",           name:"DB Romanian Deadlift",         equip:"Dumbbells",  sets:3, reps:"10–12",     note:"Hip hinge — feel the hamstring stretch" },
+      { id:"rev_lunge",     name:"DB Reverse Lunge",             equip:"Dumbbells",  sets:3, reps:"10 each",   note:"Step back — knee tracks over toe" },
+      { id:"calf_raise",    name:"Lever Calf Raise",             equip:"Levergym",   sets:4, reps:"15–20",     note:"Full ROM — slow and controlled" },
+      { id:"plank",         name:"Plank",                        equip:"Bodyweight", sets:3, reps:"45–60 sec", note:"Neutral spine — don't let hips sag" },
+      { id:"russian_twist", name:"DB Russian Twist",             equip:"Dumbbells",  sets:3, reps:"15 each",   note:"Control rotation — keep feet off floor" },
+    ]},
+  { id:"push_b", label:"Push B", type:"push", dayOfWeek:4,
+    peloton:{ ph1:null, ph2:"HIIT or Power Zone (20–30 min)", ph3:"HIIT or Power Zone (20–30 min)" },
+    exercises:[
+      { id:"dec_bench",    name:"Decline Lever Bench Press",     equip:"Levergym",   sets:4, reps:"8–10",      note:"Lower chest — different angle from Mon" },
+      { id:"db_inc_press", name:"DB Incline Press",              equip:"Dumbbells",  sets:3, reps:"8–12",      note:"Free weight — stabilisers work harder" },
+      { id:"upright_row",  name:"Lever Upright Row",             equip:"Levergym",   sets:3, reps:"10–12",     note:"Elbows lead above shoulders" },
+      { id:"front_raise",  name:"DB Front Lateral Raise",        equip:"Dumbbells",  sets:3, reps:"12–15",     note:"Anterior delt — avoid swinging" },
+      { id:"und_pushdown", name:"Underhand Tricep Pushdown",     equip:"Levergym",   sets:3, reps:"10–12",     note:"Supinated grip hits long head" },
+      { id:"lever_dip",    name:"Lever Dip",                     equip:"Levergym",   sets:3, reps:"To failure",note:"Forward lean = chest, upright = triceps" },
+    ]},
+  { id:"pull_b", label:"Pull B", type:"pull", dayOfWeek:5,
+    peloton:{ ph1:null, ph2:null, ph3:"Endurance (20–30 min)" },
+    exercises:[
+      { id:"und_pulldown", name:"Underhand Pulldown",            equip:"Levergym",   sets:4, reps:"8–12",      note:"Supinated grip — more bicep involvement" },
+      { id:"wide_row",     name:"Wide Grip Lever Row",           equip:"Levergym",   sets:4, reps:"8–10",      note:"Wider grip hits lats differently" },
+      { id:"shrug",        name:"Lever Shrug",                   equip:"Levergym",   sets:3, reps:"12–15",     note:"Pause at top, no rolling" },
+      { id:"low_curl",     name:"Low Cable Bicep Curl",          equip:"Levergym",   sets:3, reps:"10–12",     note:"Constant tension throughout" },
+      { id:"inc_curl",     name:"DB Incline Curl",               equip:"Dumbbells",  sets:3, reps:"10–12",     note:"Stretch at bottom for long head" },
+      { id:"hi_lo_fly",    name:"High-to-Low Cable Fly (rear)",  equip:"Levergym",   sets:3, reps:"12–15",     note:"Arms wide — rear delt focus" },
+    ]},
+  { id:"legs_b", label:"Legs B", type:"legs", dayOfWeek:6,
+    peloton:{ ph1:"Long Endurance (45–60 min)", ph2:"Long Endurance (45–60 min)", ph3:"Long Endurance (45–60 min)" },
+    exercises:[
+      { id:"narrow_squat", name:"Lever Squat (narrow stance)",   equip:"Levergym",   sets:4, reps:"10–12",     note:"Narrower stance = more quad emphasis" },
+      { id:"sumo_dl",      name:"DB Sumo Deadlift",              equip:"Dumbbells",  sets:3, reps:"10–12",     note:"Wide stance, toes out — inner thigh + glutes" },
+      { id:"walk_lunge",   name:"DB Walking Lunge",              equip:"Dumbbells",  sets:3, reps:"12 each",   note:"Step long — keep torso upright" },
+      { id:"single_calf",  name:"Lever Calf Raise (single leg)", equip:"Levergym",   sets:3, reps:"15 each",   note:"Unilateral to fix imbalances" },
+      { id:"knee_raise",   name:"Hanging Knee Raise",            equip:"Bodyweight", sets:3, reps:"15–20",     note:"Hanging preferred — decompresses spine" },
+      { id:"farmer_carry", name:"DB Farmer Carry",               equip:"Dumbbells",  sets:3, reps:"40 ft",     note:"Heavy as possible — grip + core + traps" },
+    ]},
+];
+
+// ─────────────────────────────────────────────
+// COLORS
+// ─────────────────────────────────────────────
+const C = {
+  black:"#0D0D0F", carbon:"#16161A", steel:"#22222A",
+  border:"#2A2A35", muted:"#52525E", sub:"#7A7A8C", text:"#E8E8EE", white:"#FFFFFF",
+  push:"#E94560", pull:"#3B82F6", legs:"#10B981", pelo:"#A855F7", phase:"#F59E0B",
+};
+const typeColor = { push:C.push, pull:C.pull, legs:C.legs };
+const typeBg    = { push:"rgba(233,69,96,0.12)", pull:"rgba(59,130,246,0.12)", legs:"rgba(16,185,129,0.12)" };
+
+// ─────────────────────────────────────────────
+// SVG ICONS  — all stroke-based, no emoji
+// ─────────────────────────────────────────────
+const Icon = ({ name, size=22, color=C.sub, strokeWidth=1.5 }) => {
+  const s = { width:size, height:size, display:"block", flexShrink:0 };
+  const p = { fill:"none", stroke:color, strokeWidth, strokeLinecap:"round", strokeLinejoin:"round" };
+  switch(name){
+    case "home":
+      return <svg viewBox="0 0 24 24" style={s}><path {...p} d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H15v-5h-6v5H4a1 1 0 01-1-1V9.5z"/></svg>;
+    case "program":
+      return <svg viewBox="0 0 24 24" style={s}><rect {...p} x="3" y="4" width="18" height="17" rx="2"/><path {...p} d="M3 9h18M8 4V2M16 4V2"/><circle fill={color} stroke="none" cx="8" cy="14" r="1.2"/><circle fill={color} stroke="none" cx="12" cy="14" r="1.2"/><circle fill={color} stroke="none" cx="16" cy="14" r="1.2"/></svg>;
+    case "sessions":
+      return <svg viewBox="0 0 24 24" style={s}><rect {...p} x="3" y="3" width="8" height="8" rx="1.5"/><rect {...p} x="13" y="3" width="8" height="8" rx="1.5"/><rect {...p} x="3" y="13" width="8" height="8" rx="1.5"/><path {...p} d="M13 17h8M17 13v8"/></svg>;
+    case "progress":
+      return <svg viewBox="0 0 24 24" style={s}><path {...p} d="M3 20h18M3 20V4"/><polyline {...p} points="6,16 10,10 14,13 19,6"/><circle fill={color} stroke="none" cx="19" cy="6" r="2"/></svg>;
+    case "gear":
+      // True gear with 8 teeth
+      return <svg viewBox="0 0 24 24" style={s}>
+        <path {...p} d="M12 15a3 3 0 100-6 3 3 0 000 6z"/>
+        <path {...p} d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+      </svg>;
+    case "chevron-left":
+      return <svg viewBox="0 0 24 24" style={s}><polyline {...p} points="15,18 9,12 15,6"/></svg>;
+    case "chevron-right":
+      return <svg viewBox="0 0 24 24" style={s}><polyline {...p} points="9,18 15,12 9,6"/></svg>;
+    case "check-circle":
+      return <svg viewBox="0 0 24 24" style={s}><circle {...p} cx="12" cy="12" r="9"/><polyline {...p} points="9,12 11,14 15,10"/></svg>;
+    case "dumbbell":
+      return <svg viewBox="0 0 24 24" style={s}><rect {...p} x="2" y="10" width="4" height="4" rx="1"/><rect {...p} x="18" y="10" width="4" height="4" rx="1"/><rect {...p} x="5" y="8" width="3" height="8" rx="1"/><rect {...p} x="16" y="8" width="3" height="8" rx="1"/><line {...p} x1="8" y1="12" x2="16" y2="12"/></svg>;
+    case "bike":
+      return <svg viewBox="0 0 24 24" style={s}><circle {...p} cx="5.5" cy="16.5" r="3.5"/><circle {...p} cx="18.5" cy="16.5" r="3.5"/><polyline {...p} points="15,16.5 11,7 8,7"/><polyline {...p} points="11,7 15,7 18.5,16.5"/><line {...p} x1="5.5" y1="16.5" x2="11" y2="7"/><circle {...p} cx="15" cy="5" r="1.5"/></svg>;
+    case "trophy":
+      return <svg viewBox="0 0 24 24" style={s}><path {...p} d="M8 21h8M12 17v4M6 3H4a2 2 0 000 4c0 3 2 5 4 6"/><path {...p} d="M18 3h2a2 2 0 010 4c0 3-2 5-4 6"/><path {...p} d="M6 3h12v7a6 6 0 01-12 0V3z"/></svg>;
+    case "star":
+      return <svg viewBox="0 0 24 24" style={s}><polygon {...p} points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>;
+    case "info":
+      return <svg viewBox="0 0 24 24" style={s}><circle {...p} cx="12" cy="12" r="9"/><line {...p} x1="12" y1="8" x2="12" y2="8.5"/><line {...p} x1="12" y1="11" x2="12" y2="16"/></svg>;
+    case "timer":
+      return <svg viewBox="0 0 24 24" style={s}><circle {...p} cx="12" cy="13" r="8"/><path {...p} d="M12 9v4l3 3"/><path {...p} d="M9 3h6M12 3v2"/></svg>;
+    case "copy":
+      return <svg viewBox="0 0 24 24" style={s}><rect {...p} x="9" y="9" width="13" height="13" rx="2"/><path {...p} d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>;
+    case "plus":
+      return <svg viewBox="0 0 24 24" style={s}><line {...p} x1="12" y1="5" x2="12" y2="19"/><line {...p} x1="5" y1="12" x2="19" y2="12"/></svg>;
+    case "minus":
+      return <svg viewBox="0 0 24 24" style={s}><line {...p} x1="5" y1="12" x2="19" y2="12"/></svg>;
+    case "x":
+      return <svg viewBox="0 0 24 24" style={s}><line {...p} x1="18" y1="6" x2="6" y2="18"/><line {...p} x1="6" y1="6" x2="18" y2="18"/></svg>;
+    default: return null;
+  }
+};
+
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+const toKey = d => {
+  const dt = d instanceof Date ? d : new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`;
+};
+const fromKey  = k => { const [y,m,d]=k.split("-").map(Number); return new Date(y,m-1,d); };
+const today    = () => { const n=new Date(); return new Date(n.getFullYear(),n.getMonth(),n.getDate()); };
+const addDays  = (d,n) => { const r=new Date(d); r.setDate(r.getDate()+n); return r; };
+const weekStart= d => { const day=d.getDay(); return addDays(d, day===0?-6:1-day); };
+const fmt      = d => d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+const fmtFull  = d => d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+const fmtDay   = d => d.toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"});
+
+const getPhaseForWeek = w => PHASES.find(p=>p.weeks.includes(w))||PHASES[2];
+const getWeekAndDay   = (startDate, date) => {
+  const days = Math.floor((date - startDate)/86400000);
+  return { weekNum: Math.floor(days/7)+1, dayIndex: days%7 };
+};
+const getDayDef = i => (i>=0&&i<=5) ? DAYS[i] : null;
+
+// ─────────────────────────────────────────────
+// STORAGE
+// ─────────────────────────────────────────────
+const STORAGE_PREFIX = "forgefit:";
+const sGet = async k => {
+  try {
+    const raw = localStorage.getItem(STORAGE_PREFIX + k);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+};
+const sSet = async (k, v) => {
+  try { localStorage.setItem(STORAGE_PREFIX + k, JSON.stringify(v)); } catch {}
+};
+
+// ─────────────────────────────────────────────
+// SMALL UI
+// ─────────────────────────────────────────────
+const Badge = ({color,bg,children,style={}}) => (
+  <span style={{display:"inline-block",padding:"2px 8px",borderRadius:6,fontSize:10,
+    fontWeight:700,fontFamily:"monospace",color,background:bg||color+"22",
+    letterSpacing:"0.06em",...style}}>{children}</span>
+);
+const Btn = ({onClick,color=C.push,children,style={},outline=false,disabled=false,small=false}) => (
+  <button onClick={onClick} disabled={disabled} style={{
+    background:outline?"transparent":disabled?"#2a2a35":color,
+    color:outline?color:disabled?C.muted:C.white,
+    border:outline?`1.5px solid ${color}`:"none",
+    borderRadius:10, padding:small?"7px 12px":"11px 16px",
+    fontWeight:700, fontSize:small?11:13, cursor:disabled?"not-allowed":"pointer",
+    letterSpacing:"0.02em", fontFamily:"inherit", width:"100%",
+    opacity:disabled?0.5:1, ...style
+  }}>{children}</button>
+);
+const Card = ({children,style={}}) => (
+  <div style={{background:C.steel,borderRadius:12,padding:"12px 14px",
+    marginBottom:8,border:`1px solid ${C.border}`,...style}}>{children}</div>
+);
+const Lbl = ({children,style={}}) => (
+  <div style={{fontSize:9,fontFamily:"monospace",letterSpacing:"0.14em",
+    textTransform:"uppercase",color:C.muted,marginBottom:6,...style}}>{children}</div>
+);
+const Divider = ({style={}}) => <div style={{height:1,background:C.border,margin:"12px 0",...style}}/>;
+
+// ─────────────────────────────────────────────
+// SETTINGS MODAL
+// ─────────────────────────────────────────────
+function SettingsModal({ settings, onSave, onClose }) {
+  const [week, setWeek] = useState(()=>{
+    const sd=fromKey(settings.startDate);
+    const {weekNum}=getWeekAndDay(sd,today());
+    return Math.min(Math.max(weekNum,1),12);
+  });
+  const [unit, setUnit]         = useState(settings.unit||"lbs");
+  const [restTime, setRestTime] = useState(settings.restTime||90);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  const save = async () => {
+    const mon       = weekStart(today());
+    const startDate = toKey(addDays(mon,-(week-1)*7));
+    const cfg       = {...settings,startDate,unit,restTime};
+    await sSet("settings:user",cfg);
+    onSave(cfg); onClose();
+  };
+
+  const handleReset = async () => {
+    await sSet("settings:user",null);
+    await sSet("data:sessions",{});
+    await sSet("data:rides",{});
+    window.location.reload();
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",
+      display:"flex",alignItems:"flex-end",zIndex:200}} onClick={onClose}>
+      <div style={{background:C.carbon,borderRadius:"20px 20px 0 0",padding:"24px 20px 44px",
+        width:"100%",border:`1px solid ${C.border}`,maxHeight:"85vh",overflowY:"auto"}}
+        onClick={e=>e.stopPropagation()}>
+
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div style={{fontSize:17,fontWeight:800,color:C.text}}>Settings</div>
+          <button onClick={onClose} style={{background:"none",border:"none",
+            color:C.muted,cursor:"pointer",padding:4}}>
+            <Icon name="x" size={20} color={C.muted}/>
+          </button>
+        </div>
+
+        <Lbl>Current Week</Lbl>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:5,marginBottom:20}}>
+          {Array.from({length:12},(_,i)=>i+1).map(w=>{
+            const col=w<=4?C.phase:w<=8?C.pull:C.legs;
+            return (
+              <button key={w} onClick={()=>setWeek(w)} style={{
+                background:week===w?col+"22":C.steel,
+                border:`1.5px solid ${week===w?col:C.border}`,
+                borderRadius:8,padding:"9px 4px",cursor:"pointer",
+                color:week===w?col:C.sub,fontWeight:700,fontSize:13,fontFamily:"inherit"
+              }}>{w}</button>
+            );
+          })}
+        </div>
+
+        <Lbl>Weight Unit</Lbl>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:20}}>
+          {["lbs","kg"].map(u=>(
+            <button key={u} onClick={()=>setUnit(u)} style={{
+              background:unit===u?"rgba(233,69,96,0.15)":C.steel,
+              border:`1.5px solid ${unit===u?C.push:C.border}`,
+              borderRadius:8,padding:"10px",color:unit===u?C.push:C.sub,
+              fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit"
+            }}>{u}</button>
+          ))}
+        </div>
+
+        <Lbl>Default Rest Timer (seconds)</Lbl>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:20}}>
+          {[60,90,120,180].map(t=>(
+            <button key={t} onClick={()=>setRestTime(t)} style={{
+              background:restTime===t?"rgba(168,85,247,0.15)":C.steel,
+              border:`1.5px solid ${restTime===t?C.pelo:C.border}`,
+              borderRadius:8,padding:"10px 4px",color:restTime===t?C.pelo:C.sub,
+              fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"
+            }}>{t}s</button>
+          ))}
+        </div>
+
+        <Btn onClick={save} style={{marginBottom:12}}>Save Changes</Btn>
+        <Divider/>
+
+        {!confirmReset?(
+          <button onClick={()=>setConfirmReset(true)} style={{
+            background:"none",border:`1px solid rgba(233,69,96,0.3)`,
+            borderRadius:10,padding:"11px",width:"100%",color:"rgba(233,69,96,0.6)",
+            fontSize:13,cursor:"pointer",fontFamily:"inherit"
+          }}>Reset All Data</button>
+        ):(
+          <div style={{background:"rgba(233,69,96,0.08)",border:"1px solid rgba(233,69,96,0.3)",
+            borderRadius:10,padding:"14px",textAlign:"center"}}>
+            <div style={{fontSize:13,color:C.text,marginBottom:10}}>
+              This will erase all sessions, rides, and settings. Are you sure?
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <button onClick={()=>setConfirmReset(false)} style={{
+                background:C.steel,border:`1px solid ${C.border}`,borderRadius:8,
+                padding:"9px",color:C.sub,cursor:"pointer",fontFamily:"inherit",fontSize:13
+              }}>Cancel</button>
+              <button onClick={handleReset} style={{
+                background:"rgba(233,69,96,0.2)",border:"1px solid rgba(233,69,96,0.4)",
+                borderRadius:8,padding:"9px",color:C.push,cursor:"pointer",
+                fontFamily:"inherit",fontSize:13,fontWeight:700
+              }}>Erase Everything</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// ONBOARDING
+// ─────────────────────────────────────────────
+function Onboarding({ onComplete }) {
+  const [week, setWeek] = useState(1);
+  const mon   = weekStart(today());
+  const phase = getPhaseForWeek(week);
+
+  const confirm = async () => {
+    const startDate = toKey(addDays(mon,-(week-1)*7));
+    const cfg = { week, startDate, unit:"lbs", restTime:90 };
+    await sSet("settings:user",cfg);
+    onComplete(cfg);
+  };
+
+  return (
+    <div style={{minHeight:"100vh",background:C.black,display:"flex",flexDirection:"column",
+      alignItems:"center",justifyContent:"center",padding:24,fontFamily:"system-ui,sans-serif"}}>
+      <div style={{maxWidth:380,width:"100%"}}>
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <div style={{fontSize:11,fontFamily:"monospace",letterSpacing:"0.2em",
+            color:C.push,textTransform:"uppercase",marginBottom:12}}>ForgeFit</div>
+          <div style={{fontSize:28,fontWeight:800,color:C.text,lineHeight:1.1,marginBottom:8}}>
+            Welcome, Shane.
+          </div>
+          <div style={{fontSize:14,color:C.sub,lineHeight:1.5}}>
+            Which week of the program are you starting on?
+          </div>
+        </div>
+
+        <Lbl>Select your current week</Lbl>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:20}}>
+          {Array.from({length:12},(_,i)=>i+1).map(w=>{
+            const col=w<=4?C.phase:w<=8?C.pull:C.legs;
+            return (
+              <button key={w} onClick={()=>setWeek(w)} style={{
+                background:week===w?col+"22":C.steel,
+                border:`1.5px solid ${week===w?col:C.border}`,
+                borderRadius:8,padding:"10px 4px",cursor:"pointer",
+                color:week===w?col:C.sub,fontWeight:700,fontSize:13,fontFamily:"inherit"
+              }}>{w}</button>
+            );
+          })}
+        </div>
+
+        <Card style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+            <Badge color={C.phase}>{phase.label}</Badge>
+            <span style={{fontSize:11,color:C.sub}}>Weeks {phase.weeks[0]}–{phase.weeks[3]}</span>
+          </div>
+          <div style={{fontSize:12,color:C.sub,marginBottom:4}}>{phase.desc}</div>
+          <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:C.pelo}}>
+            <Icon name="bike" size={13} color={C.pelo}/> {phase.rides} rides/week
+          </div>
+        </Card>
+
+        <Lbl>This week starts</Lbl>
+        <div style={{background:C.steel,borderRadius:10,border:`1px solid ${C.border}`,
+          overflow:"hidden",marginBottom:20}}>
+          {DAYS.map((d,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+              padding:"8px 14px",borderBottom:i<5?`1px solid ${C.border}`:"none"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{width:7,height:7,borderRadius:"50%",background:typeColor[d.type]}}/>
+                <span style={{fontSize:12,color:C.text,fontWeight:600}}>{d.label}</span>
+              </div>
+              <span style={{fontSize:11,color:C.sub}}>{fmt(addDays(mon,i))}</span>
+            </div>
+          ))}
+          <div style={{display:"flex",justifyContent:"space-between",padding:"8px 14px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{width:7,height:7,borderRadius:"50%",background:C.muted}}/>
+              <span style={{fontSize:12,color:C.muted}}>Rest</span>
+            </div>
+            <span style={{fontSize:11,color:C.sub}}>{fmt(addDays(mon,6))}</span>
+          </div>
+        </div>
+
+        {week>1&&(
+          <div style={{background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.2)",
+            borderRadius:10,padding:"10px 14px",marginBottom:16,
+            display:"flex",gap:8,alignItems:"flex-start"}}>
+            <Icon name="info" size={14} color={C.phase}/>
+            <span style={{fontSize:12,color:C.phase}}>
+              Past sessions show as "Not logged." Fill them in anytime from the Sessions tab.
+            </span>
+          </div>
+        )}
+
+        <Btn onClick={confirm}>Start Week {week}</Btn>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// HOME
+// ─────────────────────────────────────────────
+function HomeScreen({ settings, sessions, rides, navigate, onOpenSettings }) {
+  const startDate = fromKey(settings.startDate);
+  const td        = today();
+  const { weekNum, dayIndex } = getWeekAndDay(startDate,td);
+  const phase   = getPhaseForWeek(Math.min(weekNum,12));
+  const dayDef  = getDayDef(dayIndex);
+  const todayKey= toKey(td);
+
+  let streak=0;
+  for(let i=1;i<=30;i++){
+    const k=toKey(addDays(td,-i));
+    const dd=getDayDef(getWeekAndDay(startDate,fromKey(k)).dayIndex);
+    if(dd&&sessions[k]) streak++;
+    else if(dd) break;
+  }
+  const prCount   = Object.values(sessions).reduce((a,s)=>a+(s.prs||[]).length,0);
+  const weekMon   = weekStart(td);
+  const weekRides = Array.from({length:7},(_,i)=>toKey(addDays(weekMon,i))).filter(k=>rides[k]).length;
+
+  return (
+    <div style={{padding:"16px 16px 0",fontFamily:"system-ui,sans-serif"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+        <div>
+          <div style={{fontSize:11,color:C.muted,fontFamily:"monospace",
+            letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:4}}>ForgeFit</div>
+          <div style={{fontSize:22,fontWeight:800,color:C.text}}>
+            {(()=>{const h=new Date().getHours();return h<12?"Good morning":h<17?"Good afternoon":"Good evening"})()}, Shane.
+          </div>
+        </div>
+        <button onClick={onOpenSettings} style={{background:C.steel,border:`1px solid ${C.border}`,
+          borderRadius:10,padding:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <Icon name="gear" size={20} color={C.sub}/>
+        </button>
+      </div>
+
+      {/* Phase banner */}
+      <div style={{background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.2)",
+        borderRadius:12,padding:"10px 14px",marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <span style={{fontSize:10,fontFamily:"monospace",color:C.phase,
+            textTransform:"uppercase",letterSpacing:"0.12em"}}>{phase.label} — Wk {weekNum}</span>
+          <span style={{fontSize:11,fontWeight:700,color:C.phase}}>{Math.min(weekNum,12)}/12</span>
+        </div>
+        <div style={{height:3,background:C.border,borderRadius:2,overflow:"hidden"}}>
+          <div style={{height:"100%",background:C.phase,borderRadius:2,
+            width:`${((Math.min(weekNum,12)-1)/12)*100}%`,transition:"width 0.4s"}}/>
+        </div>
+        <div style={{fontSize:11,color:C.sub,marginTop:6,lineHeight:1.5}}>
+          {phase.weekFocus[(Math.min(weekNum,12)-1)%4]}
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
+        {[
+          {val:streak,     label:"Streak",  color:C.push},
+          {val:`${weekRides}/${phase.rides}`,label:"Rides",color:C.pelo},
+          {val:prCount,    label:"PRs",     color:C.legs},
+        ].map(s=>(
+          <div key={s.label} style={{background:C.steel,borderRadius:10,
+            padding:"10px 8px",textAlign:"center",border:`1px solid ${C.border}`}}>
+            <div style={{fontSize:20,fontWeight:800,fontFamily:"monospace",color:s.color,lineHeight:1}}>{s.val}</div>
+            <div style={{fontSize:9,color:C.muted,marginTop:3,textTransform:"uppercase",letterSpacing:"0.1em"}}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Today card */}
+      {dayDef?(
+        <Card style={{border:`1px solid ${typeColor[dayDef.type]}44`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+            <div>
+              <Lbl style={{marginBottom:2}}>Today</Lbl>
+              <div style={{fontSize:17,fontWeight:700,color:C.text}}>{dayDef.label}</div>
+              <div style={{fontSize:12,color:C.sub}}>{dayDef.exercises.length} exercises</div>
+            </div>
+            <Badge color={typeColor[dayDef.type]}>{dayDef.type.toUpperCase()}</Badge>
+          </div>
+          <Btn onClick={()=>navigate("sessions")} color={typeColor[dayDef.type]}
+            outline={!!sessions[todayKey]}>
+            {sessions[todayKey]?"View Today's Session":"Begin "+dayDef.label}
+          </Btn>
+        </Card>
+      ):(
+        <Card>
+          <div style={{fontSize:16,fontWeight:700,color:C.text,marginBottom:4}}>Rest Day</div>
+          <div style={{fontSize:12,color:C.sub}}>Recovery is part of the program.</div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// SESSIONS (was Today) — state lives in parent
+// ─────────────────────────────────────────────
+function SessionsScreen({
+  settings, sessions, rides,
+  sessionDraft, setSessionDraft,
+  onSaveSession, onSaveRide,
+}) {
+  const startDate = fromKey(settings.startDate);
+
+  // Week 1 day 0 is the earliest allowed
+  const week1Start= addDays(fromKey(settings.startDate), 0);
+  const [offset, setOffset] = useState(0);
+
+  const activeDate = addDays(today(), offset);
+  const { weekNum, dayIndex } = getWeekAndDay(startDate, activeDate);
+  const dayDef   = getDayDef(dayIndex);
+  const phase    = getPhaseForWeek(Math.min(weekNum,12));
+  const sessionKey = toKey(activeDate);
+  const isToday  = offset===0;
+  const isFuture = offset>0;
+  // Can't go before week 1 day 1 (Mon of week 1)
+  const minDate  = weekStart(fromKey(settings.startDate)); // Mon of week 1
+  const atMin    = toKey(activeDate) <= toKey(minDate);
+
+  // ── Draft state: lifted to parent so it survives tab switches ──
+  // draft = { [sessionKey]: { exSets:{}, finished:bool } }
+  const draft = sessionDraft[sessionKey] || {};
+
+  const getExSets = () => draft.exSets || {};
+  const isFinished= () => draft.finished || !!sessions[sessionKey]?.finished;
+
+  // Init exSets for this date if not in draft
+  useEffect(()=>{
+    if(!dayDef) return;
+    if(sessionDraft[sessionKey]?.exSets) return; // already have draft
+    const existing = sessions[sessionKey];
+    const init={};
+    dayDef.exercises.forEach(ex=>{
+      if(existing?.exercises?.[ex.id]){
+        init[ex.id]=existing.exercises[ex.id];
+      } else {
+        // Pre-fill weight from previous week, reps blank
+        const prevKey = toKey(addDays(activeDate,-7));
+        const prevEx  = sessions[prevKey]?.exercises?.[ex.id]||[];
+        init[ex.id]   = Array.from({length:ex.sets},(_,i)=>({
+          weight: prevEx[i]?.weight||"",
+          reps:   "",
+          done:   false,
+        }));
+      }
+    });
+    setSessionDraft(prev=>({...prev,[sessionKey]:{...draft,exSets:init,finished:!!existing?.finished}}));
+  },[sessionKey]);
+
+  const updateDraft = (updater) => {
+    setSessionDraft(prev=>{
+      const cur = prev[sessionKey]||{};
+      return {...prev,[sessionKey]:updater(cur)};
+    });
+  };
+
+  const exSets   = getExSets();
+  const finished = isFinished();
+  const [activeEx, setActiveEx] = useState(null);
+
+  useEffect(()=>{
+    if(dayDef&&!activeEx) setActiveEx(dayDef.exercises[0]?.id||null);
+  },[sessionKey,dayDef?.id]);
+
+  // ── Rest timer ──
+  const [restTimer, setRestTimer]   = useState(null);
+  const [timerVal,  setTimerVal]    = useState(settings.restTime||90);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const timerRef = useRef(null);
+
+  const startTimer = useCallback((secs)=>{
+    clearInterval(timerRef.current);
+    setTimerVal(secs);
+    setTimerRunning(true);
+    setRestTimer(Date.now());
+  },[]);
+
+  useEffect(()=>{
+    if(!timerRunning) return;
+    timerRef.current=setInterval(()=>{
+      setTimerVal(v=>{
+        if(v<=1){ clearInterval(timerRef.current); setTimerRunning(false); return 0; }
+        return v-1;
+      });
+    },1000);
+    return ()=>clearInterval(timerRef.current);
+  },[timerRunning]);
+
+  const adjustTimer = (delta) => {
+    setTimerVal(v=>Math.max(0, v+delta));
+    if(!timerRunning) setTimerRunning(true);
+  };
+
+  const stopTimer = () => { clearInterval(timerRef.current); setTimerRunning(false); setRestTimer(null); };
+
+  // ── Log modal ──
+  const [logModal, setLogModal]       = useState(null);
+  const [modalWeight, setModalWeight] = useState("");
+  const [modalReps,   setModalReps]   = useState("");
+
+  const openLog = (exId, setIdx) => {
+    const s   = exSets[exId]?.[setIdx];
+    // Weight default: previous week's weight for this set
+    const prevKey= toKey(addDays(activeDate,-7));
+    const prevW  = sessions[prevKey]?.exercises?.[exId]?.[setIdx]?.weight||"";
+    setModalWeight(s?.weight || prevW);
+    setModalReps(s?.reps||"");
+    setLogModal({exId,setIdx});
+  };
+
+  const confirmLog = () => {
+    if(!logModal) return;
+    const {exId,setIdx}=logModal;
+    updateDraft(cur=>{
+      const sets=[...(cur.exSets?.[exId]||[])];
+      sets[setIdx]={weight:modalWeight,reps:modalReps,done:true};
+      return {...cur,exSets:{...cur.exSets,[exId]:sets}};
+    });
+    setLogModal(null);
+    startTimer(settings.restTime||90);
+  };
+
+  const applyWeightToAll = (exId, weight) => {
+    updateDraft(cur=>{
+      const sets=(cur.exSets?.[exId]||[]).map(s=>({...s,weight}));
+      return {...cur,exSets:{...cur.exSets,[exId]:sets}};
+    });
+  };
+
+  const addSet = exId => {
+    updateDraft(cur=>{
+      const sets=[...(cur.exSets?.[exId]||[]),{weight:"",reps:"",done:false}];
+      return {...cur,exSets:{...cur.exSets,[exId]:sets}};
+    });
+  };
+
+  const removeSet = (exId,setIdx) => {
+    updateDraft(cur=>{
+      const sets=[...(cur.exSets?.[exId]||[])];
+      sets.splice(setIdx,1);
+      return {...cur,exSets:{...cur.exSets,[exId]:sets}};
+    });
+  };
+
+  const finishSession = async () => {
+    if(!dayDef) return;
+    const prs=[];
+    dayDef.exercises.forEach(ex=>{
+      const sets=(exSets[ex.id]||[]);
+      const topW=Math.max(...sets.filter(s=>s.done&&s.weight).map(s=>parseFloat(s.weight)||0),0);
+      if(!topW) return;
+      const prevMax=Object.entries(sessions).filter(([k])=>k<sessionKey)
+        .map(([,s])=>Math.max(...(s?.exercises?.[ex.id]||[]).map(s=>parseFloat(s.weight)||0),0));
+      if(topW>Math.max(...prevMax,0)) prs.push({exId:ex.id,name:ex.name,weight:topW});
+    });
+    await onSaveSession(sessionKey,{
+      dayId:dayDef.id,label:dayDef.label,type:dayDef.type,
+      exercises:exSets,prs,finished:true,
+      backfill:!isToday,savedAt:Date.now(),
+    });
+    updateDraft(cur=>({...cur,finished:true}));
+  };
+
+  // ── Ride ──
+  const existingRide = rides[sessionKey];
+  const rideNote     = dayDef?.peloton[`ph${phase.id}`];
+  const [showRideForm, setShowRideForm] = useState(false);
+  const [rideType, setRideType]         = useState(RIDE_TYPES[0]);
+  const [rideDuration, setRideDuration] = useState("");
+  const [rideOutput,   setRideOutput]   = useState("");
+  const [rideEffort,   setRideEffort]   = useState(5);
+
+  const saveRide = async () => {
+    await onSaveRide(sessionKey,{type:rideType,duration:rideDuration,
+      output:rideOutput,effort:rideEffort,savedAt:Date.now()});
+    setShowRideForm(false);
+  };
+
+  const tMins = String(Math.floor(timerVal/60)).padStart(2,"0");
+  const tSecs = String(timerVal%60).padStart(2,"0");
+  const doneCount = dayDef
+    ? dayDef.exercises.filter(ex=>(exSets[ex.id]||[]).some(s=>s.done)).length
+    : 0;
+
+  return (
+    <div style={{fontFamily:"system-ui,sans-serif"}}>
+
+      {/* ── Date nav header ── */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+        padding:"14px 16px 0",marginBottom:8,gap:8}}>
+        <button
+          onClick={()=>{ if(!atMin){ setOffset(o=>o-1); setActiveEx(null); } }}
+          disabled={atMin}
+          style={{background:C.steel,border:`1px solid ${C.border}`,borderRadius:8,
+            padding:8,cursor:atMin?"not-allowed":"pointer",opacity:atMin?0.3:1,
+            display:"flex",alignItems:"center"}}>
+          <Icon name="chevron-left" size={18} color={C.sub}/>
+        </button>
+
+        <div style={{textAlign:"center",flex:1}}>
+          <div style={{fontSize:13,fontWeight:700,color:C.text}}>
+            {isToday?"Today":fmtDay(activeDate)}
+          </div>
+          <div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>
+            Week {Math.min(weekNum,12)} · {dayDef?.label||"Rest"}
+          </div>
+        </div>
+
+        <button
+          onClick={()=>{ if(offset<0){ setOffset(o=>o+1); setActiveEx(null); } }}
+          disabled={offset>=0}
+          style={{background:C.steel,border:`1px solid ${C.border}`,borderRadius:8,
+            padding:8,cursor:offset>=0?"not-allowed":"pointer",opacity:offset>=0?0.3:1,
+            display:"flex",alignItems:"center"}}>
+          <Icon name="chevron-right" size={18} color={C.sub}/>
+        </button>
+      </div>
+
+      <div style={{padding:"0 16px"}}>
+
+        {/* Future */}
+        {isFuture&&(
+          <div style={{textAlign:"center",padding:"40px 0",color:C.muted,fontSize:14}}>
+            No peeking ahead.
+          </div>
+        )}
+
+        {/* Rest day */}
+        {!isFuture&&!dayDef&&(
+          <Card style={{textAlign:"center",marginTop:12}}>
+            <div style={{display:"flex",justifyContent:"center",marginBottom:8}}>
+              <Icon name="timer" size={28} color={C.muted}/>
+            </div>
+            <div style={{fontSize:16,fontWeight:700,color:C.text,marginBottom:4}}>Rest Day</div>
+            <div style={{fontSize:12,color:C.sub}}>No strength session. Log a recovery ride below if you like.</div>
+          </Card>
+        )}
+
+        {!isFuture&&dayDef&&(
+          <>
+            {/* ── STRENGTH ── */}
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,marginTop:12}}>
+              <Icon name="dumbbell" size={15} color={C.sub}/>
+              <Lbl style={{marginBottom:0}}>Strength · {dayDef.label}</Lbl>
+              <Badge color={typeColor[dayDef.type]} style={{marginLeft:"auto"}}>
+                {doneCount}/{dayDef.exercises.length}
+              </Badge>
+            </div>
+
+            {/* Rest timer */}
+            {timerRunning&&(
+              <div style={{background:"rgba(168,85,247,0.1)",border:"1px solid rgba(168,85,247,0.25)",
+                borderRadius:10,padding:"8px 12px",marginBottom:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <Icon name="timer" size={14} color={C.pelo}/>
+                    <span style={{fontSize:10,color:C.pelo,fontFamily:"monospace",
+                      textTransform:"uppercase",letterSpacing:"0.1em"}}>Rest</span>
+                  </div>
+                  <span style={{fontSize:26,fontWeight:800,fontFamily:"monospace",color:C.pelo}}>
+                    {tMins}:{tSecs}
+                  </span>
+                  <button onClick={stopTimer} style={{background:"none",border:"none",
+                    color:C.muted,cursor:"pointer",padding:2}}>
+                    <Icon name="x" size={16} color={C.muted}/>
+                  </button>
+                </div>
+                {/* Adjust timer */}
+                <div style={{display:"flex",gap:6,marginTop:8}}>
+                  {[-30,-15,+15,+30].map(d=>(
+                    <button key={d} onClick={()=>adjustTimer(d)} style={{
+                      flex:1,background:C.steel,border:`1px solid ${C.border}`,
+                      borderRadius:7,padding:"5px 2px",color:C.sub,fontSize:10,
+                      cursor:"pointer",fontFamily:"monospace",fontWeight:700
+                    }}>{d>0?"+":""}{d}s</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Exercises */}
+            {dayDef.exercises.map(ex=>{
+              const sets   = exSets[ex.id]||[];
+              const isActive = activeEx===ex.id;
+              const allDone  = sets.length>0&&sets.every(s=>s.done);
+              const firstDoneSet = sets.find(s=>s.done&&s.weight);
+
+              return (
+                <div key={ex.id} onClick={()=>setActiveEx(ex.id)}
+                  style={{background:C.steel,borderRadius:12,padding:"11px 13px",marginBottom:6,
+                    border:`1px solid ${isActive?typeColor[dayDef.type]+"66":C.border}`,
+                    opacity:!isActive&&!allDone?0.6:1,transition:"border 0.15s",cursor:"pointer"}}>
+
+                  <div style={{display:"flex",justifyContent:"space-between",
+                    alignItems:"flex-start",marginBottom:isActive?10:0}}>
+                    <div style={{flex:1,paddingRight:8}}>
+                      <div style={{fontSize:13,fontWeight:700,
+                        color:allDone?C.legs:C.text,lineHeight:1.3,
+                        display:"flex",alignItems:"center",gap:6}}>
+                        {allDone&&<Icon name="check-circle" size={14} color={C.legs}/>}
+                        {ex.name}
+                      </div>
+                      <div style={{fontSize:10,color:C.muted,marginTop:2}}>
+                        {ex.equip} · {ex.sets}×{ex.reps}
+                      </div>
+                    </div>
+                    <Badge color={allDone?C.legs:typeColor[dayDef.type]}>
+                      {sets.filter(s=>s.done).length}/{sets.length}
+                    </Badge>
+                  </div>
+
+                  {isActive&&(
+                    <>
+                      {/* Copy to all button — shown after first set done */}
+                      {firstDoneSet&&sets.some(s=>!s.done)&&(
+                        <button onClick={e=>{e.stopPropagation();applyWeightToAll(ex.id,firstDoneSet.weight);}}
+                          style={{display:"flex",alignItems:"center",gap:6,background:"rgba(59,130,246,0.1)",
+                            border:`1px solid rgba(59,130,246,0.3)`,borderRadius:7,
+                            padding:"5px 10px",marginBottom:8,cursor:"pointer",
+                            color:C.pull,fontSize:11,fontFamily:"inherit",fontWeight:600}}>
+                          <Icon name="copy" size={12} color={C.pull}/>
+                          Apply {firstDoneSet.weight}{settings.unit||"lbs"} to all sets
+                        </button>
+                      )}
+
+                      {/* Col headers */}
+                      <div style={{display:"grid",gridTemplateColumns:"26px 1fr 1fr 32px",
+                        gap:4,marginBottom:4}}>
+                        {["SET","WEIGHT","REPS",""].map(h=>(
+                          <div key={h} style={{fontSize:8,fontFamily:"monospace",color:C.muted,
+                            textAlign:"center",letterSpacing:"0.1em"}}>{h}</div>
+                        ))}
+                      </div>
+
+                      {sets.map((s,sIdx)=>(
+                        <div key={sIdx} style={{display:"grid",
+                          gridTemplateColumns:"26px 1fr 1fr 32px",gap:4,marginBottom:4,alignItems:"center"}}>
+                          <div style={{fontSize:10,fontWeight:700,fontFamily:"monospace",
+                            textAlign:"center",color:s.done?C.legs:C.muted}}>{sIdx+1}</div>
+
+                          {/* Weight cell */}
+                          <div onClick={e=>{e.stopPropagation();if(!finished)openLog(ex.id,sIdx);}}
+                            style={{background:s.done?"rgba(16,185,129,0.1)":"rgba(255,255,255,0.04)",
+                              border:`1px solid ${s.done?C.legs+"55":s.weight?C.pull+"44":C.border}`,
+                              borderRadius:7,padding:"7px 4px",textAlign:"center",
+                              fontSize:11,fontFamily:"monospace",fontWeight:700,
+                              color:s.done?C.legs:s.weight?C.text:C.muted,cursor:"pointer"}}>
+                            {s.weight?`${s.weight}${settings.unit||"lbs"}`:"—"}
+                          </div>
+
+                          {/* Reps cell */}
+                          <div onClick={e=>{e.stopPropagation();if(!finished)openLog(ex.id,sIdx);}}
+                            style={{background:s.done?"rgba(16,185,129,0.1)":"rgba(255,255,255,0.04)",
+                              border:`1px solid ${s.done?C.legs+"55":s.weight?C.push+"55":C.border}`,
+                              borderRadius:7,padding:"7px 4px",textAlign:"center",
+                              fontSize:s.done?11:10,fontFamily:"monospace",fontWeight:700,
+                              color:s.done?C.legs:C.sub,cursor:"pointer"}}>
+                            {s.done?s.reps:"tap"}
+                          </div>
+
+                          <button onClick={e=>{e.stopPropagation();if(!finished)removeSet(ex.id,sIdx);}}
+                            style={{background:"none",border:"none",cursor:"pointer",
+                              padding:4,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                            <Icon name="x" size={14} color={C.muted}/>
+                          </button>
+                        </div>
+                      ))}
+
+                      {!finished&&(
+                        <button onClick={e=>{e.stopPropagation();addSet(ex.id);}}
+                          style={{width:"100%",background:"none",
+                            border:`1px dashed ${C.border}`,borderRadius:7,padding:"6px",
+                            display:"flex",alignItems:"center",justifyContent:"center",gap:6,
+                            color:C.muted,fontSize:11,cursor:"pointer",marginTop:2}}>
+                          <Icon name="plus" size={12} color={C.muted}/> Add Set
+                        </button>
+                      )}
+
+                      <div style={{fontSize:10,color:C.muted,marginTop:8,
+                        display:"flex",alignItems:"flex-start",gap:6,fontStyle:"italic"}}>
+                        <Icon name="info" size={11} color={C.muted}/>
+                        {ex.note}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+
+            {!finished?(
+              <Btn onClick={finishSession} color={typeColor[dayDef.type]} style={{marginBottom:16}}>
+                {sessions[sessionKey]?"Update Session":"Finish Session"}
+              </Btn>
+            ):(
+              <div style={{background:"rgba(16,185,129,0.1)",border:"1px solid rgba(16,185,129,0.25)",
+                borderRadius:12,padding:"12px 14px",textAlign:"center",marginBottom:16,
+                display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+                <Icon name="check-circle" size={24} color={C.legs}/>
+                <div style={{fontSize:15,fontWeight:800,color:C.legs}}>Session Saved</div>
+                <div style={{fontSize:11,color:C.sub}}>
+                  {(sessions[sessionKey]?.prs||[]).length>0
+                    ?`${sessions[sessionKey].prs.length} new PR${sessions[sessionKey].prs.length>1?"s":""} set`
+                    :"Great work. Keep the momentum going."}
+                </div>
+              </div>
+            )}
+
+            <Divider/>
+          </>
+        )}
+
+        {/* ── CYCLING ── */}
+        {!isFuture&&(
+          <>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,
+              marginTop:dayDef?0:12}}>
+              <Icon name="bike" size={15} color={C.sub}/>
+              <Lbl style={{marginBottom:0}}>Cycling</Lbl>
+            </div>
+
+            {existingRide?(
+              <Card style={{background:"rgba(168,85,247,0.06)",border:"1px solid rgba(168,85,247,0.2)",marginBottom:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700,color:C.text}}>{existingRide.type}</div>
+                    <div style={{fontSize:11,color:C.muted,marginTop:2}}>
+                      {existingRide.duration} min · Effort {existingRide.effort}/10
+                    </div>
+                    {existingRide.output&&<div style={{fontSize:11,color:C.pelo,marginTop:2}}>{existingRide.output} kJ</div>}
+                  </div>
+                  <Badge color={C.pelo}>Logged</Badge>
+                </div>
+                <button onClick={()=>setShowRideForm(true)} style={{background:"none",border:"none",
+                  color:C.muted,fontSize:11,cursor:"pointer",marginTop:6,padding:0,fontFamily:"inherit"}}>
+                  Edit ride
+                </button>
+              </Card>
+            ):rideNote?(
+              <Card style={{background:"rgba(168,85,247,0.06)",border:"1px solid rgba(168,85,247,0.2)",marginBottom:8}}>
+                <div style={{fontSize:12,color:C.pelo,marginBottom:6,
+                  display:"flex",gap:6,alignItems:"center"}}>
+                  <Icon name="bike" size={13} color={C.pelo}/> {rideNote}
+                </div>
+                <Btn onClick={()=>setShowRideForm(true)} color={C.pelo}>Log Ride</Btn>
+              </Card>
+            ):(
+              <Card style={{marginBottom:8}}>
+                <div style={{fontSize:12,color:C.muted,marginBottom:6}}>
+                  {phase.id===1?"No ride scheduled today in Phase 1.":"Optional ride — not required today."}
+                </div>
+                <Btn onClick={()=>setShowRideForm(true)} color={C.pelo} outline>Log Optional Ride</Btn>
+              </Card>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── Log set modal ── */}
+      {logModal&&dayDef&&(()=>{
+        const ex=dayDef.exercises.find(e=>e.id===logModal.exId);
+        const prevKey=toKey(addDays(activeDate,-7));
+        const prevW=sessions[prevKey]?.exercises?.[logModal.exId]?.[logModal.setIdx]?.weight;
+        return (
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",
+            display:"flex",alignItems:"flex-end",zIndex:100}} onClick={()=>setLogModal(null)}>
+            <div style={{background:C.carbon,borderRadius:"20px 20px 0 0",
+              padding:"24px 20px 40px",width:"100%",border:`1px solid ${C.border}`}}
+              onClick={e=>e.stopPropagation()}>
+              <div style={{fontSize:15,fontWeight:700,color:C.text,marginBottom:2}}>{ex?.name}</div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:16}}>
+                Set {logModal.setIdx+1} · Target {ex?.reps}
+                {prevW&&` · Last wk: ${prevW}${settings.unit||"lbs"}`}
+              </div>
+
+              <Lbl>Weight ({settings.unit||"lbs"})</Lbl>
+              <input value={modalWeight} onChange={e=>setModalWeight(e.target.value)}
+                type="number" inputMode="decimal" placeholder={prevW||"e.g. 100"}
+                style={{width:"100%",background:C.steel,border:`1px solid ${C.border}`,
+                  borderRadius:10,padding:"12px 14px",fontSize:16,color:C.text,
+                  fontFamily:"monospace",marginBottom:12,boxSizing:"border-box"}}/>
+
+              <Lbl>Reps</Lbl>
+              <input value={modalReps} onChange={e=>setModalReps(e.target.value)}
+                type="number" inputMode="numeric" placeholder="e.g. 9"
+                style={{width:"100%",background:C.steel,border:`1px solid ${C.border}`,
+                  borderRadius:10,padding:"12px 14px",fontSize:16,color:C.text,
+                  fontFamily:"monospace",marginBottom:16,boxSizing:"border-box"}}/>
+
+              <Btn onClick={confirmLog} color={typeColor[dayDef.type]}>Log Set</Btn>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Log ride modal ── */}
+      {showRideForm&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",
+          display:"flex",alignItems:"flex-end",zIndex:100}} onClick={()=>setShowRideForm(false)}>
+          <div style={{background:C.carbon,borderRadius:"20px 20px 0 0",
+            padding:"24px 20px 40px",width:"100%",border:`1px solid ${C.border}`,
+            maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:15,fontWeight:700,color:C.text,marginBottom:16}}>Log a Ride</div>
+            <Lbl>Ride Type</Lbl>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:6,marginBottom:14}}>
+              {RIDE_TYPES.map(rt=>(
+                <button key={rt} onClick={()=>setRideType(rt)} style={{
+                  background:rideType===rt?"rgba(168,85,247,0.2)":C.steel,
+                  border:`1.5px solid ${rideType===rt?C.pelo:C.border}`,
+                  borderRadius:8,padding:"8px 6px",color:rideType===rt?C.pelo:C.sub,
+                  fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:600
+                }}>{rt}</button>
+              ))}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+              <div>
+                <Lbl>Duration (min)</Lbl>
+                <input value={rideDuration} onChange={e=>setRideDuration(e.target.value)}
+                  type="number" inputMode="numeric" placeholder="45"
+                  style={{width:"100%",background:C.steel,border:`1px solid ${C.border}`,
+                    borderRadius:10,padding:"10px 12px",fontSize:15,color:C.text,
+                    fontFamily:"monospace",boxSizing:"border-box"}}/>
+              </div>
+              <div>
+                <Lbl>Output (kJ)</Lbl>
+                <input value={rideOutput} onChange={e=>setRideOutput(e.target.value)}
+                  type="number" inputMode="numeric" placeholder="optional"
+                  style={{width:"100%",background:C.steel,border:`1px solid ${C.border}`,
+                    borderRadius:10,padding:"10px 12px",fontSize:15,color:C.text,
+                    fontFamily:"monospace",boxSizing:"border-box"}}/>
+              </div>
+            </div>
+            <Lbl>Effort ({rideEffort}/10)</Lbl>
+            <input type="range" min={1} max={10} value={rideEffort}
+              onChange={e=>setRideEffort(Number(e.target.value))}
+              style={{width:"100%",marginBottom:16,accentColor:C.pelo}}/>
+            <Btn onClick={saveRide} color={C.pelo}>Save Ride</Btn>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// PROGRAM SCREEN
+// ─────────────────────────────────────────────
+function ProgramScreen({ settings, sessions, rides }) {
+  const startDate = fromKey(settings.startDate);
+  const td        = today();
+  const { weekNum: currentWeek } = getWeekAndDay(startDate,td);
+  const [expandedWeek, setExpandedWeek] = useState(Math.min(currentWeek,12));
+
+  return (
+    <div style={{padding:"16px 16px 0",fontFamily:"system-ui,sans-serif"}}>
+      <Lbl style={{marginBottom:2}}>Program</Lbl>
+      <div style={{fontSize:20,fontWeight:800,color:C.text,marginBottom:14}}>12-Week Plan</div>
+
+      {PHASES.map(phase=>(
+        <div key={phase.id} style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <Badge color={phase.id===1?C.phase:phase.id===2?C.pull:C.legs}>{phase.label}</Badge>
+            <span style={{fontSize:11,color:C.muted}}>Wks {phase.weeks[0]}–{phase.weeks[3]}</span>
+          </div>
+
+          {phase.weeks.map(wk=>{
+            const isCurrent  = wk===Math.min(currentWeek,12);
+            const isExpanded = expandedWeek===wk;
+            const accentCol  = phase.id===1?C.phase:phase.id===2?C.pull:C.legs;
+            const weekMon    = addDays(startDate,(wk-1)*7);
+            const sessCount  = DAYS.map((_,i)=>sessions[toKey(addDays(weekMon,i))]?1:0).reduce((a,b)=>a+b,0);
+            const rideCount  = Array.from({length:7},(_,i)=>toKey(addDays(weekMon,i))).filter(k=>rides[k]).length;
+
+            return (
+              <div key={wk} style={{background:isCurrent?C.steel:C.carbon,borderRadius:12,
+                marginBottom:6,border:`1.5px solid ${isCurrent?accentCol+"55":C.border}`,overflow:"hidden"}}>
+
+                <div onClick={()=>setExpandedWeek(isExpanded?null:wk)}
+                  style={{padding:"11px 14px",cursor:"pointer"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{fontSize:14,fontWeight:700,color:isCurrent?C.text:C.sub}}>Week {wk}</div>
+                      {isCurrent&&<Badge color={accentCol} style={{fontSize:9}}>Current</Badge>}
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:11,color:C.muted}}>{fmt(weekMon)}</span>
+                      <Icon name={isExpanded?"chevron-left":"chevron-right"} size={14} color={C.muted}/>
+                    </div>
+                  </div>
+
+                  <div style={{display:"flex",gap:12,marginBottom:8}}>
+                    <div style={{display:"flex",alignItems:"center",gap:4,fontSize:11,
+                      color:sessCount===6?C.legs:C.muted}}>
+                      <Icon name="dumbbell" size={12} color={sessCount===6?C.legs:C.muted}/> {sessCount}/6
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:4,fontSize:11,
+                      color:rideCount>=phase.rides?C.pelo:C.muted}}>
+                      <Icon name="bike" size={12} color={rideCount>=phase.rides?C.pelo:C.muted}/> {rideCount}/{phase.rides}
+                    </div>
+                  </div>
+
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
+                    {DAYS.map((day,di)=>{
+                      const d=addDays(weekMon,di);
+                      const done=!!sessions[toKey(d)];
+                      const isToday=toKey(d)===toKey(td);
+                      return (
+                        <div key={di} style={{height:18,borderRadius:4,
+                          background:done?typeColor[day.type]+"33":typeBg[day.type]||C.steel,
+                          border:`1.5px solid ${done?typeColor[day.type]:isToday?C.white+"55":"transparent"}`,
+                          display:"flex",alignItems:"center",justifyContent:"center",
+                          fontSize:7,fontWeight:700,color:done?typeColor[day.type]:C.muted,
+                          fontFamily:"monospace"}}>
+                          {done?"✓":day.type[0].toUpperCase()}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{display:"flex",gap:3,marginTop:3}}>
+                    {["M","T","W","T","F","S","S"].map((l,i)=>(
+                      <div key={i} style={{flex:1,textAlign:"center",fontSize:7,
+                        color:C.muted,fontFamily:"monospace"}}>{l}</div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Expanded detail */}
+                {isExpanded&&(
+                  <div style={{borderTop:`1px solid ${C.border}`,padding:"12px 14px",background:C.black+"66"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                      <Icon name="info" size={13} color={accentCol}/>
+                      <span style={{fontSize:10,color:accentCol,fontFamily:"monospace",
+                        textTransform:"uppercase",letterSpacing:"0.1em"}}>Week {wk} Focus</span>
+                    </div>
+                    <div style={{fontSize:13,color:C.text,lineHeight:1.6,marginBottom:10}}>
+                      {phase.weekFocus[wk-phase.weeks[0]]}
+                    </div>
+                    <Divider style={{margin:"8px 0"}}/>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                      <Icon name="bike" size={13} color={C.pelo}/>
+                      <span style={{fontSize:10,color:C.pelo,fontFamily:"monospace",
+                        textTransform:"uppercase",letterSpacing:"0.1em"}}>Ride Guidance</span>
+                    </div>
+                    <div style={{fontSize:12,color:C.sub,lineHeight:1.6,marginBottom:10}}>
+                      {phase.rideGuidance}
+                    </div>
+                    <Divider style={{margin:"8px 0"}}/>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                      <Icon name="progress" size={13} color={C.legs}/>
+                      <span style={{fontSize:10,color:C.legs,fontFamily:"monospace",
+                        textTransform:"uppercase",letterSpacing:"0.1em"}}>Progressive Overload</span>
+                    </div>
+                    <div style={{fontSize:12,color:C.sub,lineHeight:1.6}}>
+                      Add 1 rep per exercise vs last week. When you hit the top of your rep range, increase weight next session.
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// PROGRESS SCREEN (read-only)
+// ─────────────────────────────────────────────
+function ProgressScreen({ settings, sessions, rides }) {
+  const startDate = fromKey(settings.startDate);
+  const td = today();
+  const { weekNum: currentWeek } = getWeekAndDay(startDate, td);
+  const [view, setView] = useState("weeks");
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedEx, setSelectedEx] = useState(null);
+
+  const allPRs = Object.values(sessions).flatMap(s=>s.prs||[]);
+  const uniquePRs = Object.values(
+    allPRs.reduce((acc,p)=>{ if(!acc[p.exId]||p.weight>acc[p.exId].weight) acc[p.exId]=p; return acc; },{})
+  ).sort((a,b)=>b.weight-a.weight).slice(0,3);
+
+  if(view==="weeks") return (
+    <div style={{padding:"16px 16px 0",fontFamily:"system-ui,sans-serif"}}>
+      <Lbl style={{marginBottom:2}}>Progress</Lbl>
+      <div style={{fontSize:20,fontWeight:800,color:C.text,marginBottom:12}}>Your Gains</div>
+
+      {uniquePRs.length>0&&(
+        <>
+          <Lbl>Personal Records</Lbl>
+          <div style={{display:"grid",gridTemplateColumns:`repeat(${uniquePRs.length},1fr)`,gap:6,marginBottom:14}}>
+            {uniquePRs.map(p=>(
+              <div key={p.exId} style={{background:C.steel,borderRadius:10,padding:"10px 8px",
+                border:`1px solid ${C.push}33`,textAlign:"center"}}>
+                <div style={{display:"flex",justifyContent:"center",marginBottom:4}}>
+                  <Icon name="trophy" size={14} color={C.push}/>
+                </div>
+                <div style={{fontSize:9,color:C.muted,marginBottom:3,lineHeight:1.3}}>
+                  {p.name.split(" ").slice(0,2).join(" ")}
+                </div>
+                <div style={{fontSize:16,fontWeight:800,fontFamily:"monospace",color:C.push}}>{p.weight}</div>
+                <div style={{fontSize:8,color:C.muted}}>{settings.unit||"lbs"}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <Lbl>Weeks</Lbl>
+      {Array.from({length:Math.min(currentWeek,12)},(_,i)=>i+1).reverse().map(wk=>{
+        const phase=getPhaseForWeek(wk);
+        const weekMon=addDays(startDate,(wk-1)*7);
+        const isCurrent=wk===Math.min(currentWeek,12);
+        const weekSessions=DAYS.map((_,di)=>{
+          const k=toKey(addDays(weekMon,di));
+          return sessions[k]?{key:k,session:sessions[k],day:DAYS[di]}:null;
+        }).filter(Boolean);
+        const ridesDone=Array.from({length:7},(_,i)=>toKey(addDays(weekMon,i))).filter(k=>rides[k]).length;
+        const weekPRs=weekSessions.flatMap(s=>s.session.prs||[]);
+
+        return (
+          <div key={wk} style={{background:C.steel,borderRadius:12,marginBottom:8,
+            border:`1px solid ${isCurrent?C.phase+"55":C.border}`}}>
+            <div style={{padding:"11px 14px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{fontSize:14,fontWeight:700,color:C.text}}>Week {wk}</div>
+                  {isCurrent&&<Badge color={C.phase} style={{fontSize:9}}>Current</Badge>}
+                  {weekPRs.length>0&&<Icon name="trophy" size={13} color={C.push}/>}
+                </div>
+                <div style={{fontSize:11,color:C.muted}}>{weekSessions.length}/6 · {ridesDone}/{phase.rides}</div>
+              </div>
+              {DAYS.map((day,di)=>{
+                const k=toKey(addDays(weekMon,di));
+                const s=sessions[k];
+                return (
+                  <div key={di} onClick={()=>{setSelectedDate(k);setView("day");}}
+                    style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                      padding:"6px 0",borderTop:`1px solid ${C.border}`,cursor:"pointer"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:7,height:7,borderRadius:"50%",
+                        background:s?typeColor[day.type]:C.border}}/>
+                      <div style={{fontSize:12,color:s?C.text:C.muted,fontWeight:s?600:400}}>
+                        {["Mon","Tue","Wed","Thu","Fri","Sat"][di]} · {day.label}
+                      </div>
+                    </div>
+                    {s
+                      ?<div style={{fontSize:10,color:C.sub}}>{Object.keys(s.exercises||{}).length} ex ›</div>
+                      :<div style={{fontSize:10,color:C.muted}}>Not logged</div>}
+                  </div>
+                );
+              })}
+              <div style={{display:"flex",justifyContent:"space-between",
+                padding:"6px 0",borderTop:`1px solid ${C.border}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:7,height:7,borderRadius:"50%",background:C.muted}}/>
+                  <div style={{fontSize:12,color:C.muted}}>Sun · Rest</div>
+                </div>
+                {rides[toKey(addDays(weekMon,6))]&&(
+                  <div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:C.pelo}}>
+                    <Icon name="bike" size={11} color={C.pelo}/> rode
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  if(view==="day"&&selectedDate) {
+    const session=sessions[selectedDate];
+    const date=fromKey(selectedDate);
+    const {dayIndex}=getWeekAndDay(startDate,date);
+    const dayDef=getDayDef(dayIndex);
+    const ride=rides[selectedDate];
+    return (
+      <div style={{padding:"16px 16px 0",fontFamily:"system-ui,sans-serif"}}>
+        <button onClick={()=>setView("weeks")} style={{background:"none",border:"none",
+          color:C.muted,fontSize:13,cursor:"pointer",padding:"0 0 12px",
+          display:"flex",alignItems:"center",gap:4,fontFamily:"inherit"}}>
+          <Icon name="chevron-left" size={16} color={C.muted}/> All Weeks
+        </button>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+          <div>
+            <Lbl style={{marginBottom:2}}>{fmtFull(date)}</Lbl>
+            <div style={{fontSize:20,fontWeight:800,color:C.text}}>{dayDef?.label||"Rest"}</div>
+          </div>
+          {dayDef&&<Badge color={typeColor[dayDef.type]}>{dayDef.type.toUpperCase()}</Badge>}
+        </div>
+
+        {session?(
+          <>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
+              {[
+                {val:Object.keys(session.exercises||{}).length,label:"Exercises",color:C.text},
+                {val:Object.values(session.exercises||{}).flat().filter(s=>s.done).length,label:"Sets",color:C.legs},
+                {val:(session.prs||[]).length,label:"PRs",color:C.push},
+              ].map(s=>(
+                <div key={s.label} style={{background:C.steel,borderRadius:10,padding:"10px 8px",
+                  textAlign:"center",border:`1px solid ${C.border}`}}>
+                  <div style={{fontSize:20,fontWeight:800,fontFamily:"monospace",color:s.color}}>{s.val}</div>
+                  <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",
+                    letterSpacing:"0.08em",marginTop:2}}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+            <Lbl>Exercises</Lbl>
+            <Card style={{padding:0,overflow:"hidden"}}>
+              {dayDef?.exercises.map((ex,i)=>{
+                const sets=session.exercises?.[ex.id]||[];
+                const doneSets=sets.filter(s=>s.done);
+                const topW=Math.max(...doneSets.map(s=>parseFloat(s.weight)||0),0);
+                const isPR=(session.prs||[]).some(p=>p.exId===ex.id);
+                return (
+                  <div key={ex.id} onClick={()=>{setSelectedEx(ex.id);setView("exercise");}}
+                    style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                      padding:"10px 14px",borderBottom:i<dayDef.exercises.length-1?`1px solid ${C.border}`:"none",
+                      cursor:"pointer",background:isPR?"rgba(233,69,96,0.04)":"transparent"}}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:700,color:C.text}}>{ex.name}</div>
+                      <div style={{fontSize:10,color:C.muted,marginTop:2}}>
+                        {doneSets.map(s=>`${s.weight}×${s.reps}`).join(" · ")}
+                      </div>
+                    </div>
+                    <div style={{textAlign:"right",display:"flex",alignItems:"center",gap:4}}>
+                      <div style={{fontSize:12,fontFamily:"monospace",
+                        color:isPR?C.push:C.sub,fontWeight:700}}>
+                        {topW>0?`${topW}${settings.unit||"lbs"}`:""}
+                      </div>
+                      {isPR&&<Icon name="trophy" size={12} color={C.push}/>}
+                      <span style={{fontSize:9,color:C.muted}}>›</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </Card>
+          </>
+        ):(
+          <Card style={{textAlign:"center"}}>
+            <div style={{fontSize:14,color:C.muted}}>Session not logged</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:4}}>Go to Sessions tab to fill this in.</div>
+          </Card>
+        )}
+
+        {ride&&(
+          <Card style={{background:"rgba(168,85,247,0.06)",border:"1px solid rgba(168,85,247,0.2)",marginTop:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+              <Icon name="bike" size={13} color={C.pelo}/>
+              <Lbl style={{marginBottom:0,color:C.pelo}}>Ride</Lbl>
+            </div>
+            <div style={{fontSize:13,fontWeight:700,color:C.text}}>{ride.type}</div>
+            <div style={{fontSize:11,color:C.muted}}>{ride.duration} min · Effort {ride.effort}/10</div>
+            {ride.output&&<div style={{fontSize:11,color:C.pelo,marginTop:2}}>{ride.output} kJ</div>}
+          </Card>
+        )}
+      </div>
+    );
+  }
+
+  if(view==="exercise"&&selectedEx) {
+    const ex=DAYS.flatMap(d=>d.exercises).find(e=>e.id===selectedEx);
+    const history=Object.entries(sessions)
+      .filter(([,s])=>s.exercises?.[selectedEx]?.some(set=>set.done))
+      .sort(([a],[b])=>a.localeCompare(b))
+      .map(([key,s])=>{
+        const sets=s.exercises[selectedEx].filter(set=>set.done);
+        const topW=Math.max(...sets.map(set=>parseFloat(set.weight)||0));
+        return {key,date:fromKey(key),sets,topW};
+      });
+    const maxW=Math.max(...history.map(h=>h.topW),1);
+    const minW=Math.min(...history.map(h=>h.topW),0);
+    const pr=history.reduce((a,b)=>b.topW>a.topW?b:a,history[0]);
+    const gain=history.length>1?pr.topW-history[0].topW:0;
+
+    return (
+      <div style={{padding:"16px 16px 0",fontFamily:"system-ui,sans-serif"}}>
+        <button onClick={()=>setView("day")} style={{background:"none",border:"none",
+          color:C.muted,fontSize:13,cursor:"pointer",padding:"0 0 12px",
+          display:"flex",alignItems:"center",gap:4,fontFamily:"inherit"}}>
+          <Icon name="chevron-left" size={16} color={C.muted}/> Back
+        </button>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+          <div>
+            <Lbl style={{marginBottom:2}}>Exercise Trend</Lbl>
+            <div style={{fontSize:17,fontWeight:800,color:C.text,lineHeight:1.2}}>{ex?.name}</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:2}}>{ex?.equip}</div>
+          </div>
+          {pr&&<Icon name="trophy" size={20} color={C.push}/>}
+        </div>
+
+        {history.length>=2?(
+          <div style={{background:C.steel,borderRadius:12,padding:"12px",
+            border:`1px solid ${C.border}`,marginBottom:12}}>
+            <Lbl style={{marginBottom:8}}>Top Set Weight ({settings.unit||"lbs"})</Lbl>
+            <svg viewBox="0 0 300 80" preserveAspectRatio="none" style={{width:"100%",height:80}}>
+              {[0.25,0.5,0.75].map(f=>(
+                <line key={f} x1="0" y1={80-f*70} x2="300" y2={80-f*70} stroke={C.border} strokeWidth="0.5"/>
+              ))}
+              <polygon
+                points={[
+                  ...history.map((h,i)=>`${(i/(history.length-1))*280+10},${80-((h.topW-minW)/(maxW-minW||1))*65}`),
+                  `${280+10},80`,`10,80`
+                ].join(" ")}
+                fill={`${C.push}15`}/>
+              <polyline
+                points={history.map((h,i)=>`${(i/(history.length-1))*280+10},${80-((h.topW-minW)/(maxW-minW||1))*65}`).join(" ")}
+                fill="none" stroke={C.push} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              {history.map((h,i)=>{
+                const x=(i/(history.length-1))*280+10;
+                const y=80-((h.topW-minW)/(maxW-minW||1))*65;
+                const isPR=h.topW===maxW;
+                return (
+                  <g key={i}>
+                    {isPR&&<circle cx={x} cy={y} r={7} fill="none" stroke={C.push} strokeWidth="1" opacity="0.4"/>}
+                    <circle cx={x} cy={y} r={isPR?4:2.5} fill={isPR?C.push:C.muted}/>
+                    {isPR&&<text x={x-8} y={y-8} fontSize="6" fill={C.push}
+                      fontFamily="monospace" fontWeight="bold">{h.topW} PR</text>}
+                  </g>
+                );
+              })}
+              <text x="2" y="77" fontSize="6" fill={C.muted} fontFamily="monospace">{minW}</text>
+              <text x="2" y="12" fontSize="6" fill={C.muted} fontFamily="monospace">{maxW}</text>
+            </svg>
+          </div>
+        ):(
+          <Card><div style={{color:C.muted,fontSize:13}}>Log more sessions to see your trend.</div></Card>
+        )}
+
+        {history.length>0&&(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
+            {[
+              {val:`${pr?.topW||0}`,label:"PR",color:C.push},
+              {val:gain>0?`+${gain}`:`${gain}`,label:"Total Gain",color:C.legs},
+              {val:history.length,label:"Sessions",color:C.pull},
+            ].map(s=>(
+              <div key={s.label} style={{background:C.steel,borderRadius:10,padding:"10px 8px",
+                textAlign:"center",border:`1px solid ${C.border}`}}>
+                <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",color:s.color}}>{s.val}</div>
+                <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",
+                  letterSpacing:"0.08em",marginTop:2}}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <Lbl>Session Log</Lbl>
+        {history.slice().reverse().slice(0,5).map(h=>(
+          <Card key={h.key} style={{marginBottom:6}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.text}}>{fmtFull(h.date)}</div>
+              <div style={{fontSize:12,fontFamily:"monospace",color:C.push,fontWeight:700}}>
+                {h.topW}{settings.unit||"lbs"}
+              </div>
+            </div>
+            <div style={{fontSize:10,color:C.muted,lineHeight:1.6}}>
+              {h.sets.map((s,i)=>`${i+1}: ${s.weight}×${s.reps}`).join("  ·  ")}
+            </div>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// ─────────────────────────────────────────────
+// ROOT APP
+// ─────────────────────────────────────────────
+function App() {
+  const [loaded, setLoaded]       = useState(false);
+  const [settings, setSettings]   = useState(null);
+  const [sessions, setSessions]   = useState({});
+  const [rides, setRides]         = useState({});
+  const [tab, setTab]             = useState("home");
+  const [showSettings, setShowSettings] = useState(false);
+  // Draft state for in-progress (unsaved) session edits — lives here so it
+  // survives switching away from the Sessions tab and back.
+  const [sessionDraft, setSessionDraft] = useState({});
+
+  useEffect(()=>{
+    (async()=>{
+      const s    = await sGet("settings:user");
+      const sess = await sGet("data:sessions")||{};
+      const r    = await sGet("data:rides")||{};
+      setSettings(s); setSessions(sess); setRides(r); setLoaded(true);
+    })();
+  },[]);
+
+  const saveSession = async (key,data)=>{ const u={...sessions,[key]:data}; setSessions(u); await sSet("data:sessions",u); };
+  const saveRide    = async (key,data)=>{ const u={...rides,[key]:data};    setRides(u);    await sSet("data:rides",u); };
+  const handleSettings = async (cfg) => { setSettings(cfg); await sSet("settings:user",cfg); };
+
+  if(!loaded) return (
+    <div style={{minHeight:"100vh",background:C.black,display:"flex",alignItems:"center",
+      justifyContent:"center",fontFamily:"system-ui,sans-serif"}}>
+      <div style={{fontSize:11,fontFamily:"monospace",letterSpacing:"0.2em",color:C.muted,textTransform:"uppercase"}}>
+        Loading
+      </div>
+    </div>
+  );
+
+  if(!settings) return <Onboarding onComplete={setSettings}/>;
+
+  const NAV = [
+    { id:"home",     label:"Home",     icon:"home" },
+    { id:"program",  label:"Program",  icon:"program" },
+    { id:"sessions", label:"Sessions", icon:"sessions" },
+    { id:"progress", label:"Progress", icon:"progress" },
+  ];
+
+  return (
+    <div style={{minHeight:"100vh",background:C.black,fontFamily:"system-ui,sans-serif",
+      maxWidth:430,margin:"0 auto",position:"relative",display:"flex",flexDirection:"column"}}>
+
+      <div style={{flex:1,overflowY:"auto",paddingBottom:80}}>
+        {tab==="home"     && <HomeScreen     settings={settings} sessions={sessions} rides={rides}
+                                              navigate={setTab} onOpenSettings={()=>setShowSettings(true)}/>}
+        {tab==="program"  && <ProgramScreen  settings={settings} sessions={sessions} rides={rides}/>}
+        {tab==="sessions" && <SessionsScreen settings={settings} sessions={sessions} rides={rides}
+                                              sessionDraft={sessionDraft} setSessionDraft={setSessionDraft}
+                                              onSaveSession={saveSession} onSaveRide={saveRide}/>}
+        {tab==="progress" && <ProgressScreen settings={settings} sessions={sessions} rides={rides}/>}
+      </div>
+
+      {/* Bottom nav */}
+      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",
+        width:"100%",maxWidth:430,background:C.carbon,borderTop:`1px solid ${C.border}`,
+        display:"flex",paddingBottom:"env(safe-area-inset-bottom,8px)"}}>
+        {NAV.map(n=>{
+          const active=tab===n.id;
+          return (
+            <button key={n.id} onClick={()=>setTab(n.id)} style={{
+              flex:1,background:"none",border:"none",cursor:"pointer",
+              padding:"10px 4px 4px",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+              <Icon name={n.icon} size={22} color={active?C.push:C.muted} strokeWidth={active?2:1.5}/>
+              <span style={{fontSize:9,fontFamily:"monospace",letterSpacing:"0.06em",
+                textTransform:"uppercase",color:active?C.push:C.muted}}>{n.label}</span>
+              <div style={{width:active?20:0,height:2,background:C.push,
+                borderRadius:1,transition:"width 0.2s"}}/>
+            </button>
+          );
+        })}
+      </div>
+
+      {showSettings&&(
+        <SettingsModal settings={settings} onSave={handleSettings} onClose={()=>setShowSettings(false)}/>
+      )}
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
