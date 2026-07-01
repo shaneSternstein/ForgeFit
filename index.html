@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0D0D0F">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -11,12 +11,14 @@
 <title>ForgeFit</title>
 <style>
   * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { background: #0D0D0F; overscroll-behavior-y: none; min-height: 100vh; }
+  html { font-size: 16px; }
+  html, body { background: #0D0D0F; overscroll-behavior-y: none; min-height: 100vh; width: 100%; }
   body { font-family: system-ui, -apple-system, sans-serif; }
   input, button, select, textarea { font-family: inherit; }
   input[type=number]::-webkit-inner-spin-button,
   input[type=number]::-webkit-outer-spin-button { opacity: 1; }
   input[type=range] { width: 100%; }
+  #root { min-height: 100vh; width: 100%; }
 </style>
 </head>
 <body>
@@ -1587,7 +1589,7 @@ function App() {
 
   return (
     React.createElement('div', { style: {minHeight:"100vh",background:C.black,fontFamily:"system-ui,sans-serif",
-      maxWidth:430,margin:"0 auto",position:"relative",display:"flex",flexDirection:"column"},}
+      width:"100%",position:"relative",display:"flex",flexDirection:"column"},}
 
       , React.createElement('div', { style: {flex:1,overflowY:"auto",paddingBottom:80},}
         , tab==="home"     && React.createElement(HomeScreen, {     settings: settings, sessions: sessions, rides: rides,
@@ -1600,8 +1602,8 @@ function App() {
       )
 
       /* Bottom nav */
-      , React.createElement('div', { style: {position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",
-        width:"100%",maxWidth:430,background:C.carbon,borderTop:`1px solid ${C.border}`,
+      , React.createElement('div', { style: {position:"fixed",bottom:0,left:0,
+        width:"100%",background:C.carbon,borderTop:`1px solid ${C.border}`,
         display:"flex",paddingBottom:"env(safe-area-inset-bottom,8px)"},}
         , NAV.map(n=>{
           const active=tab===n.id;
