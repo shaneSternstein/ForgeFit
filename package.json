@@ -1,0 +1,13 @@
+{
+  "name": "forgefit",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ForgeFit — personalized hybrid strength + cardio training PWA",
+  "dependencies": {
+    "react": "19.2.5",
+    "react-dom": "19.2.5"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.7"
+  }
+}
