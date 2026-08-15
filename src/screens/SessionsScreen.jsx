@@ -64,10 +64,15 @@ export function SessionsScreen({
     if (!S || a[z]?.exSets) return;
     let C = n[z],
       V = {};
+    const MAX_LOOKBACK_WEEKS = 26; // don't resurface weights older than ~6 months
     S.exercises.forEach($ => {
       if (C?.exercises?.[$.id]) V[$.id] = C.exercises[$.id];else {
-        let be = toDateKey(addDays(g, -7)),
-          w = n[be]?.exercises?.[$.id] || [];
+        let w = [];
+        for (let wk = 1; wk <= MAX_LOOKBACK_WEEKS; wk++) {
+          let be = toDateKey(addDays(g, -7 * wk));
+          let candidate = n[be]?.exercises?.[$.id] || [];
+          if (candidate.some(s => s.weight)) { w = candidate; break; }
+        }
         V[$.id] = Array.from({
           length: $.sets
         }, (ne, he) => ({
