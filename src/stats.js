@@ -218,11 +218,6 @@ export function ffStrengthBuckets(period, t, e, off, n, ov, ph) {
         status = ffDayStatus(d, e, n, ov, t, {}, ph);
       return {
         label: "SMTWTFS"[d.getDay()],
-        title: d.toLocaleDateString("en-US", {
-          weekday: "long",
-          month: "short",
-          day: "numeric"
-        }),
         total,
         status
       };
@@ -238,7 +233,6 @@ export function ffStrengthBuckets(period, t, e, off, n, ov, ph) {
       for (let i = 0; i < 7; i++) total += ffStrengthDayVolume(t[toDateKey(addDays(wStart, i))]);
       return {
         label: formatShortDate(wStart),
-        title: formatShortDate(wStart) + " \u2013 " + formatShortDate(addDays(wStart, 6)),
         total
       };
     });
@@ -261,10 +255,6 @@ export function ffStrengthBuckets(period, t, e, off, n, ov, ph) {
     }), {
       label: md.toLocaleDateString("en-US", {
         month: "short"
-      }),
-      title: md.toLocaleDateString("en-US", {
-        month: "long",
-        year: "numeric"
       }),
       total
     };

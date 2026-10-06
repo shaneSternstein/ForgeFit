@@ -1,5 +1,5 @@
 import React from 'react';
-import { DEFAULT_PROGRAM_DAYS, PHASE_SUMMARIES, STORAGE_PREFIX } from './constants.js';
+import { DEFAULT_PROGRAM_DAYS, PHASE_SUMMARIES } from './constants.js';
 import { loadFromStorage, saveToStorage } from './utils.js';
 import { theme } from './theme.js';
 import { Onboarding } from './components/Onboarding.jsx';
@@ -17,14 +17,7 @@ export function App() {
     [o, c] = (0, React.useState)({}),
     [f, m] = (0, React.useState)(DEFAULT_PROGRAM_DAYS),
     [y, b] = (0, React.useState)({}),
-    [p, h] = (0, React.useState)(() => {
-      try {
-        const saved = JSON.parse(localStorage.getItem(STORAGE_PREFIX + "ui:tab"));
-        return ["home", "program", "sessions", "progress"].includes(saved) ? saved : "home";
-      } catch {
-        return "home";
-      }
-    }),
+    [p, h] = (0, React.useState)("home"),
     [E, T] = (0, React.useState)(false),
     [M, d] = (0, React.useState)({}),
     [r, v] = (0, React.useState)(false),
@@ -47,9 +40,6 @@ export function App() {
       n(Q), a(Me), c(Le), m(Zt), b(Ve), zp(pp), d(SDft), setXN(ExNo), t(true);
     })();
   }, []);
-  (0, React.useEffect)(() => {
-    saveToStorage("ui:tab", p);
-  }, [p]);
   (0, React.useEffect)(() => {
     e && saveToStorage("session:draft", M);
   }, [M, e]);

@@ -54,7 +54,33 @@ export function HomeScreen({
     }}>{(() => {
     let d = (/* @__PURE__ */new Date()).getHours();
     return d < 12 ? "Good morning" : d < 17 ? "Good afternoon" : "Good evening";
-  })()}{", Shane."}</div>}</div>}</div>}{m ? null : <div style={{
+  })()}{", Shane."}</div>}</div>}</div>}{m ? <div style={{
+      background: "rgba(16,185,129,0.08)",
+      border: "1px solid rgba(16,185,129,0.2)",
+      borderRadius: 12,
+      padding: "10px 14px",
+      marginBottom: 12
+    }}>{<div style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 4
+    }}>{<span style={{
+      fontSize: 10,
+      fontFamily: "monospace",
+      color: theme.legs,
+      textTransform: "uppercase",
+      letterSpacing: "0.12em"
+    }}>{"Routine Mode · Week "}{c}</span>}{<span style={{
+      fontSize: 10,
+      fontFamily: "monospace",
+      color: theme.legs,
+      fontWeight: 700
+    }}>{"Program Complete ✓"}</span>}</div>}{<div style={{
+      fontSize: 11,
+      color: theme.sub,
+      lineHeight: 1.5
+    }}>{"Running your Week 12 routine on repeat. Edit it anytime from the Program tab."}</div>}</div> : <div style={{
       background: "rgba(245,158,11,0.08)",
       border: "1px solid rgba(245,158,11,0.2)",
       borderRadius: 12,

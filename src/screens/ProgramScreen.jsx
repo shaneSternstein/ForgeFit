@@ -194,7 +194,30 @@ export function ProgramScreen({
       fontWeight: 700,
       cursor: "pointer",
       fontFamily: "inherit"
-    }}>{Am === "routine" ? "Switch" : "Start New Program"}</button>}</div>}</div>}</div>}{(() => {
+    }}>{Am === "routine" ? "Switch" : "Start New Program"}</button>}</div>}</div>}</div>}{y && <div style={{
+      background: "rgba(16,185,129,0.08)",
+      border: "1px solid rgba(16,185,129,0.2)",
+      borderRadius: 12,
+      padding: "10px 14px",
+      marginBottom: 14
+    }}>{<div style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 4
+    }}>{<span style={{
+      fontSize: 10,
+      fontFamily: "monospace",
+      color: theme.legs,
+      textTransform: "uppercase",
+      letterSpacing: "0.12em"
+    }}>{"Program Complete"}</span>}{<Badge color={theme.legs} style={{
+      fontSize: 9
+    }}>{"Routine Mode · Wk "}{m}</Badge>}</div>}{<div style={{
+      fontSize: 12,
+      color: theme.sub,
+      lineHeight: 1.5
+    }}>{"You've finished the 12-week program. Your routine repeats weekly from Week 12. Use Edit Routine (coming soon) to swap exercises or adjust sets."}</div>}</div>}{(() => {
     if (y) {
       let RT = makeRoutinePhase(ph),
         _ = addDays(c, (m - 1) * 7);

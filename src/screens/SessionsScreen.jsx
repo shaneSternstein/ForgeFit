@@ -313,7 +313,7 @@ export function SessionsScreen({
       fontSize: 10,
       color: theme.muted,
       fontFamily: "monospace"
-    }}>{D ? "Routine" : `Week ${_}`}{" · "}{S?.label || "Rest"}</div>}</div>}{<button onClick={() => {
+    }}>{D ? `Routine \xB7 Wk ${_}` : `Week ${_}`}{" · "}{S?.label || "Rest"}</div>}</div>}{<button onClick={() => {
       v(C => C + 1), Ut(null);
     }} style={{
       background: theme.steel,
@@ -493,16 +493,9 @@ export function SessionsScreen({
         transition: "border 0.15s",
         cursor: "pointer"
       }}>{(() => {
-      let he = [], Ct = 0;
-      {
-        const HIST_LOOKBACK_WEEKS = 26; // matches the weight auto-fill lookback
-        for (let wk = 1; wk <= HIST_LOOKBACK_WEEKS; wk++) {
-          let w = toDateKey(addDays(g, -7 * wk));
-          let candidate = (n[w]?.exercises?.[C.id] || []).filter(Ke => Ke.done);
-          if (candidate.length) { he = candidate; break; }
-        }
+      let w = toDateKey(addDays(g, -7)),
+        he = (n[w]?.exercises?.[C.id] || []).filter(Ke => Ke.done),
         Ct = he.length ? Math.max(...he.map(Ke => parseFloat(Ke.weight) || 0)) : 0;
-      }
       return <div style={{
           display: "flex",
           justifyContent: "space-between",
@@ -535,7 +528,7 @@ export function SessionsScreen({
           fontFamily: "monospace",
           textTransform: "uppercase",
           letterSpacing: "0.08em"
-        }}>{"Last:"}</span>}{he.slice(0, 4).map((Ke, ba) => <span key={ba} style={{
+        }}>{"Last wk:"}</span>}{he.slice(0, 4).map((Ke, ba) => <span key={ba} style={{
           fontSize: 9,
           fontFamily: "monospace",
           color: parseFloat(Ke.weight) >= Ct && ba === he.findIndex(ao => parseFloat(ao.weight) === Ct) ? theme.push : theme.sub,

@@ -6,6 +6,7 @@ import { Badge, Card, Icon, Label } from '../components/ui.jsx';
 import { CATEGORY_COLORS, theme } from '../theme.js';
 import { CalCard } from '../components/CalCard.jsx';
 import { CardioCard } from '../components/CardioCard.jsx';
+import { StrengthCard } from '../components/StrengthCard.jsx';
 import { StatsCard } from '../components/StatsCard.jsx';
 
 export function ProgressScreen({
@@ -42,7 +43,7 @@ export function ProgressScreen({
         fontWeight: 800,
         color: theme.text,
         marginBottom: 14
-      }}>{"Your Gains"}</div>}{<CalCard settings={e} days={n} overrides={ov} sessions={t} rides={l} phases={ph} monthOffset={CMo} setMonthOffset={SCMo} />}{<CardioCard settings={e} rides={l} />}{<Card style={{
+      }}>{"Your Gains"}</div>}{<CalCard settings={e} days={n} overrides={ov} sessions={t} rides={l} phases={ph} monthOffset={CMo} setMonthOffset={SCMo} />}{<StrengthCard settings={e} sessions={t} days={n} overrides={ov} phases={ph} />}{<CardioCard settings={e} rides={l} />}{<Card style={{
         marginBottom: 14,
         padding: "14px 14px 6px"
       }}>{<Label style={{
