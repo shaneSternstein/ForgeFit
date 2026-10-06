@@ -172,6 +172,105 @@ export function ffCardioBuckets(period, cat, l, e, off) {
   });
 }
 
+function ffStrengthDayVolume(sess) {
+  if (!sess?.exercises) return 0;
+  return Object.entries(sess.exercises).reduce((sum, [exId, sets]) => {
+    let meta = EXERCISE_LIBRARY.find(x => x.id === exId);
+    if (meta?.equip === "Bodyweight") return sum; // v1: bodyweight-only exercises don't count toward volume
+    return sum + (sets || []).filter(s => s.done).reduce((a, s) => a + (parseFloat(s.weight) || 0) * (parseFloat(s.reps) || 0), 0);
+  }, 0);
+}
+
+export function ffStrengthStats(period, t, e, off) {
+  let rt = getToday(),
+    today = ffRefDate(period, off || 0, rt),
+    start;
+  if (period === "1W") start = addDays(today, -6);else if (period === "1M") start = addDays(today, -29);else if (period === "3M") start = new Date(today.getFullYear(), today.getMonth() - 2, 1);else if (period === "1Y") start = new Date(today.getFullYear(), today.getMonth() - 11, 1);else {
+    start = parseDateKey(e.startDate), today = rt;
+  }
+  let sk = toDateKey(start),
+    tk = toDateKey(today),
+    entries = Object.entries(t).filter(([dk]) => dk >= sk && dk <= tk).map(([dk, sess]) => [dk, ffStrengthDayVolume(sess)]).filter(([, v]) => v > 0),
+    total = entries.reduce((a, [, v]) => a + v, 0),
+    rangeDays = Math.round((today - start) / 864e5) + 1,
+    weeks = Math.max(rangeDays / 7, 1);
+  return {
+    total: Math.round(total),
+    weeklyAvg: Math.round(total / weeks),
+    sessionAvg: entries.length ? Math.round(total / entries.length) : 0,
+    count: entries.length,
+    start,
+    end: today
+  };
+}
+
+export function ffStrengthBuckets(period, t, e, off, n, ov, ph) {
+  let rt = getToday(),
+    today = ffRefDate(period, off || 0, rt);
+  if (period === "1W") {
+    let start = addDays(today, -6);
+    return Array.from({
+      length: 7
+    }, (_, i) => {
+      let d = addDays(start, i),
+        dk = toDateKey(d),
+        total = ffStrengthDayVolume(t[dk]),
+        status = ffDayStatus(d, e, n, ov, t, {}, ph);
+      return {
+        label: "SMTWTFS"[d.getDay()],
+        title: d.toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "short",
+          day: "numeric"
+        }),
+        total,
+        status
+      };
+    });
+  }
+  if (period === "1M") {
+    let start = addDays(today, -27);
+    return Array.from({
+      length: 4
+    }, (_, w) => {
+      let wStart = addDays(start, w * 7),
+        total = 0;
+      for (let i = 0; i < 7; i++) total += ffStrengthDayVolume(t[toDateKey(addDays(wStart, i))]);
+      return {
+        label: formatShortDate(wStart),
+        title: formatShortDate(wStart) + " \u2013 " + formatShortDate(addDays(wStart, 6)),
+        total
+      };
+    });
+  }
+  let monthsBack;
+  if (period === "1Y") monthsBack = 11;else if (period === "All") {
+    today = rt;
+    let start = parseDateKey(e.startDate);
+    monthsBack = (today.getFullYear() - start.getFullYear()) * 12 + (today.getMonth() - start.getMonth());
+  } else monthsBack = 2;
+  return Array.from({
+    length: monthsBack + 1
+  }, (_, idx) => {
+    let m = monthsBack - idx,
+      md = new Date(today.getFullYear(), today.getMonth() - m, 1),
+      total = 0;
+    return Object.entries(t).forEach(([dk, sess]) => {
+      let rd = parseDateKey(dk);
+      rd.getFullYear() === md.getFullYear() && rd.getMonth() === md.getMonth() && (total += ffStrengthDayVolume(sess));
+    }), {
+      label: md.toLocaleDateString("en-US", {
+        month: "short"
+      }),
+      title: md.toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric"
+      }),
+      total
+    };
+  });
+}
+
 export function ffStatsForPeriod(period, t, l, e) {
   let today = getToday(),
     start;
